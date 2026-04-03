@@ -35,8 +35,27 @@
  */
 uint8_t iquartBuildSetFloat(uint8_t *buf, float value);
 
+/*
+ * General-purpose IQUART SET float frame builder.
+ * Same 11-byte layout but caller chooses type_idn and sub_idn.
+ */
+uint8_t iquartBuildSetFloatEx(uint8_t *buf, uint8_t typeIdn, uint8_t subIdn, float value);
+
 #define IQUART_SET_FLOAT_LEN 11
-#define IQUART_PROP_MOTOR_TYPE_IDN 52
-#define IQUART_CTRL_VELOCITY_SUB_IDN 5
+
+/* PropellerMotorControl module */
+#define IQUART_PROP_MOTOR_TYPE_IDN      52
+#define IQUART_CTRL_VELOCITY_SUB_IDN     5
+#define IQUART_CTRL_COAST_SUB_IDN        6
+#define IQUART_VELOCITY_CUTOFF_SUB_IDN  12
+
+/* MultiTurnAngleControl module */
+#define IQUART_MULTI_TURN_TYPE_IDN      59
+#define IQUART_CTRL_ANGLE_SUB_IDN        5
+
+/* BrushedlessDrive module */
+#define IQUART_BRUSHLESS_TYPE_IDN       50
+#define IQUART_OBS_CURRENT_SUB_IDN       8
+#define IQUART_CURRENT_LIMIT_SUB_IDN    10
 
 #endif /* USE_VERTIQ */

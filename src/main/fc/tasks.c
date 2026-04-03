@@ -76,6 +76,10 @@
 #include "io/usb_cdc_hid.h"
 #include "io/vtx.h"
 
+#ifdef USE_VERTIQ
+#include "io/vertiq.h"
+#endif
+
 #include "msp/msp.h"
 #include "msp/msp_serial.h"
 
@@ -485,6 +489,10 @@ task_attribute_t task_attributes[TASK_COUNT] = {
 #if ENABLE_OSD_CUSTOM_TEXT
     [TASK_OSD_CUSTOM_TEXT] = DEFINE_TASK("OSD_CTEXT", NULL, NULL, osdCustomTextUpdate, TASK_PERIOD_HZ(100), TASK_PRIORITY_LOW),
 #endif
+
+#ifdef USE_VERTIQ
+    [TASK_VERTIQ] = DEFINE_TASK("VERTIQ", NULL, NULL, vertiqTask, TASK_PERIOD_US(2000), TASK_PRIORITY_MEDIUM),
+#endif
 };
 
 task_t *getTask(unsigned taskId)
@@ -683,5 +691,9 @@ void tasksInit(void)
 
 #if ENABLE_OSD_CUSTOM_TEXT
     setTaskEnabled(TASK_OSD_CUSTOM_TEXT, true);
+#endif
+
+#ifdef USE_VERTIQ
+    setTaskEnabled(TASK_VERTIQ, vertiqInit());
 #endif
 }

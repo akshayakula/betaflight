@@ -194,6 +194,9 @@ typedef enum {
 #if ENABLE_OSD_CUSTOM_TEXT
     TASK_OSD_CUSTOM_TEXT,
 #endif
+#ifdef USE_VERTIQ
+    TASK_VERTIQ,
+#endif
 
     /* Count of real tasks */
     TASK_COUNT,

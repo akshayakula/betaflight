@@ -85,12 +85,18 @@ static uint16_t crc_finalize(uint16_t crc)
  * CRC is computed over bytes [2..8] (type, sub, reserved, float[4]).
  */
 
-uint8_t iquartBuildSetFloat(uint8_t *buf, float value)
+/*
+ * iquartBuildSetFloatEx  -- general-purpose SET float frame builder
+ *
+ * Same 11-byte layout as iquartBuildSetFloat, but the caller
+ * supplies the type_idn and sub_idn fields.
+ */
+uint8_t iquartBuildSetFloatEx(uint8_t *buf, uint8_t typeIdn, uint8_t subIdn, float value)
 {
     buf[0] = 0x55;
     buf[1] = 0x06;                              /* payload length */
-    buf[2] = IQUART_PROP_MOTOR_TYPE_IDN;        /* type_idn = 52 */
-    buf[3] = IQUART_CTRL_VELOCITY_SUB_IDN;      /* sub_idn = 5 */
+    buf[2] = typeIdn;
+    buf[3] = subIdn;
     buf[4] = 0x01;                              /* reserved */
 
     /* copy float as little-endian bytes */
@@ -108,6 +114,17 @@ uint8_t iquartBuildSetFloat(uint8_t *buf, float value)
     buf[10] = (uint8_t)(crc >> 8);
 
     return IQUART_SET_FLOAT_LEN;
+}
+
+/*
+ * iquartBuildSetFloat  -- convenience wrapper for ctrl_velocity
+ */
+uint8_t iquartBuildSetFloat(uint8_t *buf, float value)
+{
+    return iquartBuildSetFloatEx(buf,
+                                IQUART_PROP_MOTOR_TYPE_IDN,
+                                IQUART_CTRL_VELOCITY_SUB_IDN,
+                                value);
 }
 
 #endif /* USE_VERTIQ */
