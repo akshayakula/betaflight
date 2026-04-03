@@ -287,7 +287,9 @@ COMMON_SRC = \
             io/vtx_tramp.c \
             io/vtx_control.c \
             io/vtx_msp.c \
-            cms/cms_menu_vtx_msp.c
+            cms/cms_menu_vtx_msp.c \
+            drivers/vertiq/iquart.c \
+            io/vertiq.c
 
 ifneq ($(SIMULATOR_BUILD),yes)
 
