@@ -2,18 +2,24 @@
  * IQUART packet builder for Vertiq 23-06 2306 2200Kv
  *
  * Implements the minimal subset of the IQ Module Communication protocol
- * needed to send SET commands to the Propeller Motor Controller.
+ * needed to send SET commands to the Vertiq motor running pulsing firmware.
  *
  * Packet format (11 bytes total):
  *   [0]    0x55              start-of-frame
- *   [1]    0x06              payload length (6 bytes follow)
- *   [2]    0x34              type_idn (PropellerMotorControl = 52)
- *   [3]    0x05              sub_idn (ctrl_velocity = 5)
- *   [4]    0x01              reserved/subindex
- *   [5..8] float_le          velocity in rad/s, little-endian IEEE-754
+ *   [1]    0x06              payload length
+ *   [2]    type_idn          client type
+ *   [3]    sub_idn           entry sub-index
+ *   [4]    access_byte       (obj_idn << 2) | kSet
+ *   [5..8] float_le          value, little-endian IEEE-754
  *   [9..10] crc16_le         CRC-16, little-endian
  *
- * Reference: IQ Propeller Motor Controller IDD / Vertiq documentation
+ * CRC: Vertiq CRC-16 (poly 0x1021, init 0xFFFF) over bytes [1..8].
+ *
+ * Constants verified against iq-module-communication-cpp (master):
+ *   propeller_motor_control_client.hpp
+ *   voltage_superposition_client.hpp
+ *   client_communication.hpp
+ *   crc_helper.c
  *
  * This file is part of Betaflight / EXark.
  * SPDX-License-Identifier: GPL-3.0-or-later
@@ -25,37 +31,20 @@
 
 #ifdef USE_VERTIQ
 
-/*
- * Build a complete IQUART SET velocity frame for PropellerMotorControl.
- *
- *   buf    – caller-supplied buffer, must be >= IQUART_SET_FLOAT_LEN
- *   value  – velocity in rad/s (IEEE-754 float, little-endian)
- *
- * Returns the number of bytes written (always IQUART_SET_FLOAT_LEN).
- */
 uint8_t iquartBuildSetFloat(uint8_t *buf, float value);
-
-/*
- * General-purpose IQUART SET float frame builder.
- * Same 11-byte layout but caller chooses type_idn and sub_idn.
- */
 uint8_t iquartBuildSetFloatEx(uint8_t *buf, uint8_t typeIdn, uint8_t subIdn, float value);
 
 #define IQUART_SET_FLOAT_LEN 11
 
-/* PropellerMotorControl module */
+/* PropellerMotorControl (type 52) — propeller_motor_control_client.hpp */
 #define IQUART_PROP_MOTOR_TYPE_IDN      52
-#define IQUART_CTRL_VELOCITY_SUB_IDN     5
-#define IQUART_CTRL_COAST_SUB_IDN        6
-#define IQUART_VELOCITY_CUTOFF_SUB_IDN  12
+#define IQUART_CTRL_COAST_SUB_IDN        2  /* kSubCtrlCoast  */
+#define IQUART_CTRL_VELOCITY_SUB_IDN     5  /* kSubCtrlVelocity */
 
-/* MultiTurnAngleControl module */
-#define IQUART_MULTI_TURN_TYPE_IDN      59
-#define IQUART_CTRL_ANGLE_SUB_IDN        5
-
-/* BrushedlessDrive module */
-#define IQUART_BRUSHLESS_TYPE_IDN       50
-#define IQUART_OBS_CURRENT_SUB_IDN       8
-#define IQUART_CURRENT_LIMIT_SUB_IDN    10
+/* VoltageSuperPosition (type 74) — voltage_superposition_client.hpp */
+#define IQUART_VSP_TYPE_IDN             74
+#define IQUART_VSP_PHASE_SUB_IDN         2  /* kSubPhase */
+#define IQUART_VSP_AMPLITUDE_SUB_IDN     3  /* kSubAmplitude */
+#define IQUART_VSP_VELOCITY_CUTOFF_SUB_IDN 6 /* kSubVelocityCutoff */
 
 #endif /* USE_VERTIQ */

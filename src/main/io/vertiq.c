@@ -1,14 +1,14 @@
 /*
- * Vertiq 23-06 IQUART motor output driver
+ * Vertiq 23-06 IQUART motor output driver (pulsing firmware)
  *
  * 500 Hz control task that reads RC channels, slew-limits velocity and
- * current commands, then streams three IQUART SET packets per cycle
+ * amplitude commands, then streams three IQUART SET packets per cycle
  * over a dedicated serial port.
  *
  * RC mapping:
- *   THROTTLE (ch 3) -> velocity  [0 .. V_VEL_MAX] rad/s
- *   AUX1     (ch 4) -> current   [0 .. V_AMP_MAX] A
- *   AUX2     (ch 5) -> phase     reserved (coast = 0)
+ *   THROTTLE (ch 3) -> PropellerMotorControl.ctrl_velocity  [0 .. 478.6] rad/s
+ *   AUX1     (ch 4) -> VoltageSuperPosition.amplitude       [0 .. 40.0]  V
+ *   AUX2     (ch 5) -> VoltageSuperPosition.phase           [-pi .. +pi] rad
  *
  * All output is arm-gated: when disarmed every target is zero.
  *
@@ -40,26 +40,27 @@
 
 #include "rx/rx.h"
 
-/* ========== motor limits ========== */
+/* ========== motor limits (matches Arduino sketch) ========== */
 
 #define V_VEL_MAX       478.6f      /* rad/s  (~4570 RPM mechanical) */
-#define V_AMP_MAX        40.0f      /* amperes                       */
-#define V_PHASE_MAX       1.0f      /* normalised coast command       */
+#define V_AMP_MAX        40.0f      /* volts  (VSP amplitude)        */
+#define V_PHASE_MIN     (-3.14159265f)
+#define V_PHASE_MAX      (3.14159265f)
 
-/* ========== slew rates (per second) ========== */
+/* ========== slew rates (per second, match Arduino exactly) ========== */
 
 #define V_VEL_ACCEL     200.0f      /* rad/s per second  (accel) */
 #define V_VEL_DECEL     120.0f      /* rad/s per second  (decel) */
-#define V_AMP_ATTACK     60.0f      /* A per second      (attack) */
-#define V_AMP_DECAY      90.0f      /* A per second      (decay)  */
+#define V_AMP_ATTACK     60.0f      /* V per second      (attack) */
+#define V_AMP_DECAY      90.0f      /* V per second      (decay)  */
 
 /* ========== state variables ========== */
 
 static float velCmd;                /* current slewed velocity (rad/s) */
-static float ampCmd;                /* current slewed current  (A)     */
+static float ampCmd;                /* current slewed amplitude (V)    */
 static float velTarget;             /* target velocity from RC         */
-static float ampTarget;             /* target current  from RC         */
-static float phaseCmd;              /* phase / coast command            */
+static float ampTarget;             /* target amplitude from RC        */
+static float phaseCmd;              /* phase command (rad)             */
 
 static timeUs_t lastUs;             /* timestamp of previous cycle     */
 static serialPort_t *vPort;         /* UART handle                     */
@@ -133,12 +134,12 @@ void vertiqTask(timeUs_t currentTimeUs)
         return;
     }
 
-    /* ---- first-run init: send velocity_cutoff = 0 (Arduino setup pattern) ---- */
+    /* ---- first-run init: disable VSP velocity cutoff (Arduino setup pattern) ---- */
     if (!vReady) {
         uint8_t initFrame[IQUART_SET_FLOAT_LEN];
         iquartBuildSetFloatEx(initFrame,
-                              IQUART_PROP_MOTOR_TYPE_IDN,
-                              IQUART_VELOCITY_CUTOFF_SUB_IDN,
+                              IQUART_VSP_TYPE_IDN,
+                              IQUART_VSP_VELOCITY_CUTOFF_SUB_IDN,
                               0.0f);
         serialWriteBuf(vPort, initFrame, IQUART_SET_FLOAT_LEN);
 
@@ -158,39 +159,39 @@ void vertiqTask(timeUs_t currentTimeUs)
     if (ARMING_FLAG(ARMED)) {
         velTarget = rc_map(rcData[THROTTLE], 0.0f, V_VEL_MAX);
         ampTarget = rc_map(rcData[AUX1],     0.0f, V_AMP_MAX);
-        phaseCmd  = rc_map(rcData[AUX2],     0.0f, V_PHASE_MAX);
+        phaseCmd  = rc_map(rcData[AUX2],     V_PHASE_MIN, V_PHASE_MAX);
     } else {
         velTarget = 0.0f;
         ampTarget = 0.0f;
         phaseCmd  = 0.0f;
     }
 
-    /* ---- slew velocity and current ---- */
+    /* ---- slew velocity and amplitude ---- */
     velCmd = slew(velCmd, velTarget, V_VEL_ACCEL, V_VEL_DECEL, dt);
     ampCmd = slew(ampCmd, ampTarget, V_AMP_ATTACK, V_AMP_DECAY, dt);
 
-    /* ---- build and send 3 packets ---- */
+    /* ---- build and send 3 packets (33 bytes) ---- */
 
     uint8_t pkt[IQUART_SET_FLOAT_LEN];
 
-    /* Packet 1: ctrl_velocity */
+    /* Packet 1: PropellerMotorControl.ctrl_velocity (type=52, sub=5) */
     iquartBuildSetFloatEx(pkt,
                           IQUART_PROP_MOTOR_TYPE_IDN,
                           IQUART_CTRL_VELOCITY_SUB_IDN,
                           velCmd);
     serialWriteBuf(vPort, pkt, IQUART_SET_FLOAT_LEN);
 
-    /* Packet 2: current limit */
+    /* Packet 2: VoltageSuperPosition.amplitude (type=74, sub=3) */
     iquartBuildSetFloatEx(pkt,
-                          IQUART_BRUSHLESS_TYPE_IDN,
-                          IQUART_CURRENT_LIMIT_SUB_IDN,
+                          IQUART_VSP_TYPE_IDN,
+                          IQUART_VSP_AMPLITUDE_SUB_IDN,
                           ampCmd);
     serialWriteBuf(vPort, pkt, IQUART_SET_FLOAT_LEN);
 
-    /* Packet 3: ctrl_coast (phase) */
+    /* Packet 3: VoltageSuperPosition.phase (type=74, sub=2) */
     iquartBuildSetFloatEx(pkt,
-                          IQUART_PROP_MOTOR_TYPE_IDN,
-                          IQUART_CTRL_COAST_SUB_IDN,
+                          IQUART_VSP_TYPE_IDN,
+                          IQUART_VSP_PHASE_SUB_IDN,
                           phaseCmd);
     serialWriteBuf(vPort, pkt, IQUART_SET_FLOAT_LEN);
 }
